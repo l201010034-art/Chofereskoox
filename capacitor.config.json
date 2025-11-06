@@ -15,6 +15,13 @@
     "StatusBar": {
       "style": "light",
       "backgroundColor": "#007aff"
+    },
+        "LiveUpdates": {
+      "appId": "f0dbecb1",
+      "channel": "Production",
+      "autoUpdateMethod": "background",
+      "enabled": true
     }
   }
 }
+

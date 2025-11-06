@@ -8,6 +8,9 @@ project(':capacitor-community-background-geolocation').projectDir = new File('..
 include ':capacitor-haptics'
 project(':capacitor-haptics').projectDir = new File('../node_modules/@capacitor/haptics/android')
 
+include ':capacitor-live-updates'
+project(':capacitor-live-updates').projectDir = new File('../node_modules/@capacitor/live-updates/android')
+
 include ':capacitor-splash-screen'
 project(':capacitor-splash-screen').projectDir = new File('../node_modules/@capacitor/splash-screen/android')
 
