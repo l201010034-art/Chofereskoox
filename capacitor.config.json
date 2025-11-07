@@ -1,0 +1,27 @@
+{
+  "appId": "com.chofer.rutaskoox",
+  "appName": "chofer-koox",
+  "webDir": "www",
+  "plugins": {
+    "BackgroundGeolocation": {
+      "androidScreenOn": true
+    },
+    "SplashScreen": {
+      "launchShowDuration": 2000,
+      "launchAutoHide": true,
+      "backgroundColor": "#ffffff",
+      "showSpinner": false
+    },
+    "StatusBar": {
+      "style": "light",
+      "backgroundColor": "#007aff"
+    },
+        "LiveUpdates": {
+      "appId": "f0dbecb1",
+      "channel": "Production",
+      "autoUpdateMethod": "background",
+      "enabled": true
+    }
+  }
+}
+

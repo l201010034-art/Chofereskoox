@@ -1,0 +1,1 @@
+com.equimaps.capacitor_background_geolocation
