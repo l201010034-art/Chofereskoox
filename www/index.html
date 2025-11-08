@@ -14,8 +14,8 @@
         
         <div id="login-screen" class="screen active">
             <h2>Iniciar Sesión (Chofer)</h2>
-            <input type="email" id="login-email" placeholder="Correo electrónico" value="">
-            <input type="password" id="login-password" placeholder="Contraseña" value="">
+            <input type="email" id="login-email" placeholder="Correo electrónico" value="chofer1@koox.com">
+            <input type="password" id="login-password" placeholder="Contraseña" value="123456">
             <button id="login-button">Iniciar Sesión</button>
             <p id="login-error" class="error-message"></p>
         </div>
@@ -79,12 +79,20 @@
             <button id="btn-cerrar-modal" class="btn-modal-opcion secundario">Solo estoy detenido</button>
         </div>
     </div>
+
+    <div id="driving-overlay">
+        <div id="driving-icon">🛑</div>
+        <h2>Vehículo en Movimiento</h2>
+        <p>Por tu seguridad, la app está bloqueada mientras conduces.</p>
+    </div>
     
     <script src="capacitor.js"></script>
     <script src="turf.min.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-    <script src="app.js?v=2"></script>    
+    
+    <script src="app.js?v=4"></script>
+    
 </body>
 </html>

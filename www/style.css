@@ -88,7 +88,7 @@ button.danger:hover {
     background-color: #c30000;
 }
 
-/* (NUEVO) Estilo para botones secundarios */
+/* Estilo para botones secundarios */
 button.secundario {
     background-color: #6c757d;
     margin-top: 20px;
@@ -96,7 +96,6 @@ button.secundario {
 button.secundario:hover {
     background-color: #5a6268;
 }
-
 
 .error-message {
     color: #ff3b30;
@@ -141,6 +140,14 @@ button.secundario:hover {
     margin: 0;
 }
 
+.checador-display {
+    font-size: 0.9em;
+    font-style: italic;
+    color: #555;
+    text-align: center;
+    margin: 5px 0 0 0;
+}
+
 /* --- Estilos para Horario Dinámico (Chofer) --- */
 .horario-panel {
     background-color: #f0f8ff;
@@ -164,7 +171,7 @@ button.secundario:hover {
     float: right;
 }
 
-/* --- Estilos para Modal de Retraso (Chofer) --- */
+/* --- Estilos para Modales --- */
 .modal-overlay {
     position: fixed;
     top: 0;
@@ -207,13 +214,37 @@ button.secundario:hover {
     color: white;
 }
 
-/* --- AÑADIR ESTO AL FINAL DE style.css --- */
-
-/* Estilo para el nombre del checador */
-.checador-display {
-    font-size: 0.9em;
-    font-style: italic;
-    color: #555;
+/* --- MODO CONDUCCIÓN (NUEVO) --- */
+#driving-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.95); /* Casi totalmente opaco */
+    color: white;
+    display: none; /* Flex cuando se activa */
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 3000; /* El más alto de todos */
+    padding: 20px;
+    box-sizing: border-box;
     text-align: center;
-    margin: 5px 0 0 0;
+}
+
+#driving-icon {
+    font-size: 80px;
+    margin-bottom: 20px;
+}
+
+#driving-overlay h2 {
+    color: #ff3b30;
+    font-size: 2em;
+    margin-bottom: 10px;
+}
+
+#driving-overlay p {
+    font-size: 1.3em;
+    color: #ccc;
 }
