@@ -1,12 +1,5 @@
-// --- PRUEBA DE VIDA VISUAL ---
-console.log("DEBUG: Iniciando app.js vFINAL (Driver Safe)...");
-document.addEventListener('DOMContentLoaded', () => {
-    const titulo = document.querySelector('#login-screen h2');
-    if (titulo) {
-        titulo.textContent = "¡LISTO! (Chofer)";
-        titulo.style.color = "#007aff";
-    }
-});
+// --- APP CHOFER V1.0 FINAL ULTIMATE ---
+console.log("DEBUG: Iniciando App Chofer V1.0 ULTIMATE...");
 
 // --- CONFIGURACIÓN FIREBASE ---
 const firebaseConfig = {
@@ -18,656 +11,449 @@ const firebaseConfig = {
   appId: "1:255575956265:web:c6f7487ced40a4f6f87538",
   measurementId: "G-81656MC0ZC"
 };
-
 firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.firestore();
 
-// --- VARIABLES GLOBALES ---
+// --- ESTADO GLOBAL ---
 let currentUser = null;
-let currentDriverName = null; 
-let watchId = null; 
 let currentUnitId = null;
 let currentRouteId = null;
-let tickerInterval = null; 
+let watchId = null;
+let masterClockInterval = null; // Reemplaza al ticker anterior
 let currentVueltaDocId = null;
 let notificationIdCounter = 1;
-let gpsRetryTimeout = null; // Para recuperación de GPS
+let gpsRetryTimeout = null;
+let listeners = { unit: null, bulletin: null };
+let lastStateCheck = 0;
 
 let estadoTurno = {
-    status: "INACTIVO", 
-    paraderoBase: null, 
-    duracionVueltaMin: 0,
-    tiempoDescansoMin: 0,
-    proximaSalida: null, 
-    proximoRegreso: null, 
-    listenerTurno: null, 
-    retrasoReportado: false
+    status: "INACTIVO",
+    proximaSalida: null,
+    proximoRegreso: null,
+    retrasoReportado: false,
+    paraderoBase: null,
+    duracionVueltaMin: 60,
+    tiempoDescansoMin: 15
 };
 
-// --- ELEMENTOS DEL DOM ---
+// --- REFERENCIAS DOM ---
 const loginScreen = document.getElementById('login-screen');
-const loginButton = document.getElementById('login-button');
-const loginEmail = document.getElementById('login-email');
-const loginPassword = document.getElementById('login-password');
-const loginError = document.getElementById('login-error');
-const profileScreen = document.getElementById('profile-screen');
-const driverNameInput = document.getElementById('driver-name');
-const saveProfileButton = document.getElementById('save-profile-button');
 const mainScreen = document.getElementById('main-screen');
-const driverEmail = document.getElementById('driver-email');
-const unitNumberInput = document.getElementById('unit-number');
-const startShiftButton = document.getElementById('start-shift-button');
-const stopShiftButton = document.getElementById('stop-shift-button');
+const profileScreen = document.getElementById('profile-screen');
+const drivingOverlay = document.getElementById('driving-overlay');
+// Asegurar negro puro para ahorro OLED
+if (drivingOverlay) drivingOverlay.style.backgroundColor = "#000000";
+
+const semaforoBar = document.getElementById('semaforo-bar');
+const loginBtn = document.getElementById('login-button');
+const loginError = document.getElementById('login-error');
 const statusText = document.getElementById('status-text');
-const locationCoords = document.getElementById('location-coords');
-const logoutButton = document.getElementById('logout-button'); 
-const reportIssueButton = document.getElementById('report-issue-button');
-const infoRutaAsignada = document.getElementById('info-ruta-asignada');
-const rutaAsignadaTexto = document.getElementById('ruta-asignada-texto');
-const checadorAsignadoTexto = document.getElementById('checador-asignado-texto');
-const panelHorario = document.getElementById('panel-horario-dinamico');
-const horarioSalida = document.getElementById('horario-salida');
-const horarioRegreso = document.getElementById('horario-regreso');
+const startShiftBtn = document.getElementById('start-shift-button');
+const stopShiftBtn = document.getElementById('stop-shift-button');
+const unitInput = document.getElementById('unit-number');
+const boletinContainer = document.getElementById('boletin-container');
+const boletinTexto = document.getElementById('boletin-texto');
+const progresoTurno = document.getElementById('progreso-turno');
+const vueltaActualNum = document.getElementById('vuelta-actual-num');
 const modalRetraso = document.getElementById('modal-retraso');
-const drivingOverlay = document.getElementById('driving-overlay'); // NUEVO
+const modalApoyo = document.getElementById('modal-apoyo');
+const controlesActivos = document.getElementById('controles-activos');
 
-// --- Lógica del Modal de Retraso ---
-modalRetraso.addEventListener('click', (e) => {
-    if (e.target.classList.contains('btn-modal-opcion')) {
-        const motivo = e.target.dataset.motivo;
-        if (motivo) {
-            reportarRetraso(motivo);
-            estadoTurno.retrasoReportado = true;
+// --- INICIALIZACIÓN ---
+document.addEventListener('DOMContentLoaded', () => {
+    const titulo = document.querySelector('#login-screen h2');
+    if (titulo) { titulo.textContent = "¡LISTO! (Chofer)"; titulo.style.color = "#007aff"; }
+    
+    // Listener global de boletines
+    listeners.bulletin = db.collection('config').doc('mensajes_globales').onSnapshot(doc => {
+        if (doc.exists && doc.data().mensajeActivo && boletinContainer) {
+            boletinTexto.textContent = doc.data().mensajeActivo;
+            boletinContainer.style.display = 'block';
+        } else if (boletinContainer) {
+            boletinContainer.style.display = 'none';
         }
-        modalRetraso.style.display = 'none';
-    }
-});
-document.getElementById('btn-cerrar-modal').addEventListener('click', () => {
-    modalRetraso.style.display = 'none';
-});
-
-reportIssueButton.addEventListener('click', () => {
-    if (estadoTurno.status === "INACTIVO") return;
-    modalRetraso.style.display = 'flex';
-});
-
-// --- LÓGICA DE AUTENTICACIÓN ---
-auth.onAuthStateChanged(user => {
-    if (user) {
-        console.log("Usuario autenticado:", user.email);
-        currentUser = user;
-        db.collection('conductores').doc(user.uid).get().then(doc => {
-            if (doc.exists) {
-                const perfil = doc.data();
-                currentDriverName = perfil.nombre || user.email; 
-                driverEmail.textContent = currentDriverName;
-                mostrarPantalla(mainScreen);
-                buscarTurnoActivo(user.uid);
-            } else {
-                mostrarPantalla(profileScreen);
-            }
-        }).catch(err => {
-            console.error("Error verificando perfil:", err);
-            loginError.textContent = "Error de conexión al verificar perfil.";
-            loginError.style.display = 'block';
-        });
-    } else {
-        currentUser = null;
-        currentDriverName = null;
-        mostrarPantalla(loginScreen);
-        stopTracking();
-        loginButton.disabled = false;
-        loginButton.textContent = "Iniciar Sesión";
-    }
-});
-
-function mostrarPantalla(pantallaActiva) {
-    loginScreen.classList.remove('active');
-    profileScreen.classList.remove('active');
-    mainScreen.classList.remove('active');
-    pantallaActiva.classList.add('active');
-    // Asegurar que el overlay de manejo se oculte al cambiar pantalla
-    drivingOverlay.style.display = 'none';
-}
-
-// --- EVENT LISTENERS PRINCIPALES ---
-loginButton.addEventListener('click', () => {
-    loginError.style.display = 'none';
-    loginButton.disabled = true;
-    loginButton.textContent = "Entrando...";
-    const email = loginEmail.value;
-    const password = loginPassword.value;
-
-    auth.signInWithEmailAndPassword(email, password)
-        .then(() => { console.log("Login exitoso"); })
-        .catch((error) => {
-            console.error("Error de login:", error);
-            loginError.textContent = "Error: " + error.message;
-            loginError.style.display = 'block';
-            loginButton.disabled = false;
-            loginButton.textContent = "Iniciar Sesión";
-        });
-});
-
-saveProfileButton.addEventListener('click', () => {
-    const nombre = driverNameInput.value.trim();
-    if (!nombre) {
-        alert("Por favor ingresa tu nombre completo.");
-        return;
-    }
-    saveProfileButton.disabled = true;
-    saveProfileButton.textContent = "Guardando...";
-    db.collection('conductores').doc(currentUser.uid).set({
-        email: currentUser.email,
-        nombre: nombre,
-        fechaRegistro: firebase.firestore.FieldValue.serverTimestamp()
-    }).then(() => {
-        currentDriverName = nombre;
-        driverEmail.textContent = currentDriverName;
-        mostrarPantalla(mainScreen);
-    }).catch((error) => {
-        alert("No se pudo guardar el perfil.");
-        saveProfileButton.disabled = false;
-        saveProfileButton.textContent = "Guardar Perfil";
     });
 });
 
-logoutButton.addEventListener('click', () => {
-    if (estadoTurno.status !== "INACTIVO") {
-        if (!confirm("Tienes un turno activo. ¿Salir? Se terminará tu turno.")) return;
-        stopShiftButton.click();
-    }
-    auth.signOut();
-});
-
-// --- LÓGICA PRINCIPAL DE TURNO ---
-startShiftButton.addEventListener('click', async () => {
-    const unitNumber = unitNumberInput.value.trim();
-    if (!unitNumber) {
-        alert("Ingresa el número de unidad.");
-        return;
-    }
-    currentUnitId = unitNumber;
-    startShiftButton.disabled = true;
-    unitNumberInput.disabled = true;
-    statusText.textContent = "Conectando...";
-    statusText.style.color = "orange";
-
-    try { await Capacitor.Plugins.LocalNotifications.requestPermissions(); } catch(e) {}
-
-    try {
-        const unidadRef = db.collection('unidades').doc(currentUnitId);
-        const doc = await unidadRef.get();
-        if (!doc.exists) throw new Error("Unidad no existe.");
-        const data = doc.data();
-        if (data.currentDriverId && data.currentDriverId !== currentUser.uid) {
-             throw new Error("Unidad ocupada por otro chofer.");
-        }
-
-        console.log(`Unidad ${currentUnitId} tomada.`);
-        statusText.textContent = "Esperando ruta...";
-
-        estadoTurno.listenerTurno = unidadRef.onSnapshot((docSnapshot) => {
-            if (!docSnapshot.exists) return;
-            manejarActualizacionUnidad(docSnapshot.data());
-        }, (error) => {
-            statusText.textContent = "Error de conexión";
-        });
-
-    } catch (err) {
-        alert(err.message);
-        startShiftButton.disabled = false;
-        unitNumberInput.disabled = false;
-        statusText.textContent = "Desconectado";
-        statusText.style.color = "red";
-        currentUnitId = null;
-    }
-});
-
-function manejarActualizacionUnidad(data) {
-    if (data.assignedRouteId) {
-        if (estadoTurno.status === "INACTIVO") {
-            currentRouteId = data.assignedRouteId;
-            estadoTurno.paraderoBase = data.paraderoSalidaCoords;
-            estadoTurno.duracionVueltaMin = data.duracionVueltaMin || 60;
-            estadoTurno.tiempoDescansoMin = data.tiempoDescansoMin || 15;
-            
-            infoRutaAsignada.style.display = 'block';
-            rutaAsignadaTexto.textContent = currentRouteId;
-            checadorAsignadoTexto.textContent = `Asignada por: ${data.checadorName || 'Sistema'}`;
-            stopShiftButton.disabled = false;
-            reportIssueButton.style.display = 'block';
-            startTracking();
-        }
-
-        estadoTurno.status = data.status || "EN_ESPERA";
-        estadoTurno.proximaSalida = data.proximaSalida ? data.proximaSalida.toDate() : null;
-        estadoTurno.proximoRegreso = data.proximoRegreso ? data.proximoRegreso.toDate() : null;
-        if (data.retrasoInfo === null) estadoTurno.retrasoReportado = false;
-
-        actualizarPanelHorario(estadoTurno.status, estadoTurno.proximaSalida, estadoTurno.proximoRegreso);
-
-        if (!currentVueltaDocId && currentUnitId) recuperarVueltaActiva();
-    } else {
-        if (estadoTurno.status !== "INACTIVO") {
-            alert("Tu asignación de ruta ha terminado.");
-            stopShiftButton.click();
-        }
-    }
-}
-
-async function recuperarVueltaActiva() {
-    try {
-        let snapshot = await db.collection('unidades').doc(currentUnitId).collection('vueltas_log')
-            .where('status', '==', 'PENDIENTE').limit(1).get();
-        if (snapshot.empty) {
-            snapshot = await db.collection('unidades').doc(currentUnitId).collection('vueltas_log')
-                .where('status', '==', 'EN_RUTA').limit(1).get();
-        }
-        if (!snapshot.empty) currentVueltaDocId = snapshot.docs[0].id;
-    } catch (e) { console.warn("No se pudo recuperar vuelta activa:", e); }
-}
-
-// Listener de TERMINAR TURNO (Actualizado)
-stopShiftButton.addEventListener('click', async () => { // <--- Nota el async aquí
-    // Deshabilitar el botón para evitar doble clic mientras procesa
-    stopShiftButton.disabled = true;
-    stopShiftButton.textContent = "Finalizando...";
-
-    if (estadoTurno.listenerTurno) {
-        estadoTurno.listenerTurno();
-        estadoTurno.listenerTurno = null;
-    }
-
-    // Llamamos a la nueva versión robusta y ESPERAMOS
-    const exito = await stopTracking();
-
-    if (exito) {
-        // Solo si Firebase confirmó el borrado, limpiamos la UI local
-        startShiftButton.disabled = false;
-        unitNumberInput.disabled = false;
-        unitNumberInput.value = "";
-        // stopShiftButton ya está disabled, lo dejamos así pero regresamos el texto
-        stopShiftButton.textContent = "Terminar Turno"; 
-        
-        reportIssueButton.style.display = 'none';
-        infoRutaAsignada.style.display = 'none';
-        const panelHorario = document.getElementById('panel-horario-dinamico');
-        if (panelHorario) panelHorario.style.display = 'none';
-        
-        statusText.textContent = "Desconectado";
-        statusText.style.color = "gray";
-        locationCoords.textContent = "";
-
-        currentUnitId = null;
-        currentRouteId = null;
-        currentVueltaDocId = null;
-        estadoTurno = { status: "INACTIVO", paraderoBase: null, duracionVueltaMin: 0, tiempoDescansoMin: 0, proximaSalida: null, proximoRegreso: null, listenerTurno: null, retrasoReportado: false };
-    } else {
-        // Si falló, reactivamos el botón para que pueda reintentar
-        stopShiftButton.disabled = false;
-        stopShiftButton.textContent = "Terminar Turno";
-    }
-});
-
-// Listener de CERRAR SESIÓN (Actualizado)
-logoutButton.addEventListener('click', async () => { // <--- Nota el async aquí
-    if (estadoTurno.status !== "INACTIVO") {
-        if (!confirm("Tienes un turno activo. ¿Seguro que quieres salir? Se terminará tu turno.")) {
-            return;
-        }
-        // Forzamos el término de turno y ESPERAMOS a que termine antes de salir
-        console.log("Cerrando sesión con turno activo, finalizando primero...");
-        await stopTracking(); 
-    }
-    console.log("Haciendo signOut de Firebase...");
-    auth.signOut();
-});
-
-// --- LÓGICA DE GEOLOCALIZACIÓN (OPTIMIZADA) ---
-async function startTracking() {
-    if (watchId) return;
-    // Limpiar timeout de reintento si existía
-    if (gpsRetryTimeout) {
-        clearTimeout(gpsRetryTimeout);
-        gpsRetryTimeout = null;
-    }
-
-    try {
-        watchId = await Capacitor.Plugins.BackgroundGeolocation.addWatcher(
-            {
-                backgroundMessage: "Compartiendo ubicación en tiempo real.",
-                backgroundTitle: "Turno Activo",
-                requestPermissions: true,
-                stale: false,
-                distanceFilter: 30 // OPTIMIZACIÓN: 30 metros para ahorrar batería
-            }, 
-            (location, error) => {
-                if (error) {
-                    console.error("Error de GPS:", error);
-                    // AUTORECUPERACIÓN: Si falla y seguimos en turno, reintentar en 10s
-                    if (currentUnitId && !gpsRetryTimeout) {
-                        console.log("Intentando reconectar GPS en 10s...");
-                        gpsRetryTimeout = setTimeout(() => {
-                            gpsRetryTimeout = null;
-                            stopTracking().then(() => startTracking());
-                        }, 10000);
-                    }
-                    return;
-                }
-                if (location) {
-                    handleLocationUpdate({
-                        coords: {
-                            latitude: location.latitude, longitude: location.longitude,
-                            speed: location.speed || 0, heading: location.bearing || 0,
-                            accuracy: location.accuracy
-                        },
-                        timestamp: location.time
-                    });
-                }
+// --- AUTENTICACIÓN Y PANTALLA ---
+auth.onAuthStateChanged(async (user) => {
+    if (user) {
+        currentUser = user;
+        try { await Capacitor.Plugins.KeepAwake.keepAwake(); } catch (e) {}
+        db.collection('conductores').doc(user.uid).get().then(doc => {
+            if (doc.exists) {
+                document.getElementById('driver-email').textContent = doc.data().nombre || user.email;
+                mostrarPantalla(mainScreen);
+                recuperarTurnoActivo();
+            } else {
+                mostrarPantalla(profileScreen);
             }
-        );
-        
-        if (tickerInterval) clearInterval(tickerInterval);
-        tickerInterval = setInterval(checkTimeBasedStates, 15000);
+        });
+    } else {
+        currentUser = null;
+        mostrarPantalla(loginScreen);
+        limpiarSesionLocal();
+        loginBtn.disabled = false; loginBtn.textContent = "Iniciar Sesión";
+        try { await Capacitor.Plugins.KeepAwake.allowSleep(); } catch (e) {}
+    }
+});
 
-        db.collection('unidades').doc(currentUnitId).set({
-            currentDriverId: currentUser.uid,
-            currentDriverName: currentDriverName,
-            currentDriverEmail: currentUser.email,
+function mostrarPantalla(screen) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    screen.classList.add('active');
+    drivingOverlay.style.display = 'none';
+}
+
+// --- GESTIÓN DE TURNOS ---
+startShiftBtn.addEventListener('click', async () => {
+    const unit = unitInput.value.trim();
+    if (!unit) return alert("Ingresa el número de unidad.");
+    startShiftBtn.disabled = true; statusText.textContent = "Conectando...";
+    statusText.style.color = "orange";
+    
+    try {
+        const unitRef = db.collection('unidades').doc(unit);
+        const doc = await unitRef.get();
+        if (!doc.exists) throw new Error("Unidad no encontrada.");
+        if (doc.data().currentDriverId && doc.data().currentDriverId !== currentUser.uid) throw new Error("Unidad ocupada.");
+
+        currentUnitId = unit;
+        unitInput.disabled = true;
+        startShiftBtn.style.display = 'none';
+        if (controlesActivos) controlesActivos.style.display = 'block';
+        
+        await unitRef.set({
+            currentDriverId: currentUser.uid, currentDriverEmail: currentUser.email,
             lastUpdate: firebase.firestore.FieldValue.serverTimestamp()
         }, { merge: true });
 
+        iniciarListenersUnidad();
+        iniciarGPS();
     } catch (e) {
-        console.error("Fallo crítico GPS:", e);
-        alert("Error al iniciar GPS. Reiniciando servicio...");
-        // Intento inmediato de recuperación si falla el arranque inicial
-        setTimeout(startTracking, 5000);
+        alert(e.message);
+        startShiftBtn.disabled = false;
+        startShiftBtn.style.display = 'block';
+        statusText.textContent = "Desconectado";
+        statusText.style.color = "gray";
+    }
+});
+
+function iniciarListenersUnidad() {
+    if (listeners.unit) listeners.unit();
+    listeners.unit = db.collection('unidades').doc(currentUnitId).onSnapshot(doc => {
+        if (!doc.exists) return;
+        const data = doc.data();
+        
+        // Actualizar variables de estado
+        estadoTurno.status = data.status || "EN_ESPERA";
+        estadoTurno.proximaSalida = data.proximaSalida ? data.proximaSalida.toDate() : null;
+        estadoTurno.proximoRegreso = data.proximoRegreso ? data.proximoRegreso.toDate() : null;
+        estadoTurno.paraderoBase = data.paraderoSalidaCoords;
+        estadoTurno.duracionVueltaMin = data.duracionVueltaMin || 60;
+        estadoTurno.tiempoDescansoMin = data.tiempoDescansoMin || 15;
+        if (data.assignedRouteId) currentRouteId = data.assignedRouteId;
+        if (data.retrasoInfo === null) estadoTurno.retrasoReportado = false;
+
+        // Ajuste inteligente de horario si entró tarde
+        if ((estadoTurno.status === 'LISTO_PARA_SALIR' || estadoTurno.status === 'EN_DESCANSO') && estadoTurno.proximaSalida) {
+             ajustarHorarioSiEsNecesario();
+        }
+
+        actualizarInterfaz(data);
+        if (!currentVueltaDocId && data.status !== "INACTIVO") recuperarVueltaID();
+        if (!data.currentDriverId && estadoTurno.status !== "INACTIVO") {
+            alert("Asignación terminada por central.");
+            stopShiftBtn.click();
+        }
+    });
+
+    // Reloj maestro de 1s para UI fluida
+    if (masterClockInterval) clearInterval(masterClockInterval);
+    masterClockInterval = setInterval(cicloRelojMaestro, 1000);
+}
+
+function ajustarHorarioSiEsNecesario() {
+    const ahora = new Date();
+    // Si el horario de salida ya pasó hace más de 30 mins, lo adelantamos un ciclo
+    if (estadoTurno.proximaSalida && (ahora.getTime() - estadoTurno.proximaSalida.getTime() > 30 * 60000)) {
+        console.log("Ajustando horario antiguo...");
+        const cicloMs = (estadoTurno.duracionVueltaMin + estadoTurno.tiempoDescansoMin) * 60000;
+        while (estadoTurno.proximaSalida < ahora) {
+            estadoTurno.proximaSalida = new Date(estadoTurno.proximaSalida.getTime() + cicloMs);
+            if (estadoTurno.proximoRegreso) estadoTurno.proximoRegreso = new Date(estadoTurno.proximoRegreso.getTime() + cicloMs);
+        }
     }
 }
- 
-// --- LÓGICA DE GEOLOCALIZACIÓN (OPTIMIZADA Y BLINDADA) ---
-// ... (startTracking se queda igual) ...
 
-async function stopTracking() {
-    console.log("🛑 INICIANDO DETENCIÓN DE RASTREO...");
-    
-    // 1. Detener GPS nativo inmediatamente
-    if (watchId) {
-        try { await Capacitor.Plugins.BackgroundGeolocation.removeWatcher({ id: watchId }); } catch (e) { console.warn("Warning al detener watcher:", e); }
-        watchId = null;
+function actualizarInterfaz(data) {
+    // Info básica
+    document.getElementById('ruta-asignada-texto').textContent = data.assignedRouteId || "--";
+    document.getElementById('checador-asignado-texto').textContent = data.checadorName || "Esperando...";
+    document.getElementById('info-ruta-asignada').style.display = data.assignedRouteId ? 'block' : 'none';
+
+    // Scorecard
+    if (data.vueltasCompletadas !== undefined && progresoTurno) {
+        progresoTurno.style.display = 'block';
+        vueltaActualNum.textContent = (data.status === 'EN_RUTA') ? (data.vueltasCompletadas + 1) : data.vueltasCompletadas;
     }
-    if (gpsRetryTimeout) {
-        clearTimeout(gpsRetryTimeout);
-        gpsRetryTimeout = null;
-    }
-    if (tickerInterval) {
-        clearInterval(tickerInterval);
-        tickerInterval = null;
-    }
-    // Quitar bloqueo de pantalla si estaba activo
-    const overlay = document.getElementById('driving-overlay');
-    if (overlay) overlay.style.display = 'none';
 
-    // 2. Guardar ID localmente para asegurar que no se pierda durante la ejecución
-    const unidadParaLiberar = currentUnitId;
-    console.log("Unidad a liberar:", unidadParaLiberar);
-
-    // 3. Operaciones en Firebase (CRÍTICO: Usar await)
-    if (unidadParaLiberar) {
-        try {
-            statusText.textContent = "Finalizando en red..."; // Feedback visual
-
-            // A) Borrar ubicación en vivo
-            console.log("A) Borrando live_location...");
-            await db.collection('live_locations').doc(unidadParaLiberar).delete();
-            console.log(">>> live_location borrada.");
-
-            // B) Liberar unidad
-            console.log("B) Actualizando estado de unidad...");
-            await db.collection('unidades').doc(unidadParaLiberar).update({
-                status: 'INACTIVO',
-                currentDriverId: null,
-                currentDriverName: null,
-                currentDriverEmail: null,
-                assignedRouteId: null,
-                proximaSalida: null,
-                proximoRegreso: null,
-                retrasoInfo: null,
-                checadorId: null,
-                checadorName: null,
-                vueltasCompletadas: null
-            });
-            console.log(">>> Unidad liberada a INACTIVO.");
-
-        } catch (err) {
-            console.error("❌ ERROR CRÍTICO AL FINALIZAR TURNO EN FIREBASE:", err);
-            alert("Hubo un error de red al finalizar. Por favor verifica que tengas internet e inténtalo de nuevo.");
-            // No limpiamos las variables globales si falló, para que pueda reintentar
-            return false; 
-        }
+    // Modos de pantalla (Base vs Ruta)
+    const container = document.querySelector('.container');
+    if (estadoTurno.status === 'EN_DESCANSO' || estadoTurno.status === 'LISTO_PARA_SALIR') {
+        container.classList.add('modo-base');
+        document.getElementById('hora-salida-base').textContent = formatHora(estadoTurno.proximaSalida);
     } else {
-        console.warn("No había currentUnitId para liberar.");
+        container.classList.remove('modo-base');
+        document.getElementById('horario-salida').textContent = formatHora(estadoTurno.proximaSalida);
+        document.getElementById('horario-regreso').textContent = formatHora(estadoTurno.proximoRegreso);
+        document.getElementById('panel-horario-dinamico').style.display = data.assignedRouteId ? 'block' : 'none';
     }
 
-    console.log("🛑 RASTREO DETENIDO CORRECTAMENTE.");
-    return true; // Indica éxito
+    // Estado y color
+    const estados = {
+        "EN_ESPERA": ["Esperando Ruta...", "gray"], "EN_RUTA": ["EN RUTA", "#28a745"],
+        "EN_DESCANSO": ["EN BASE", "#007aff"], "LISTO_PARA_SALIR": ["¡SALIDA AUTORIZADA!", "#ff9800"],
+        "RETRASADO": ["RETRASADO", "#dc3545"]
+    };
+    const [txt, col] = estados[estadoTurno.status] || [estadoTurno.status, "black"];
+    statusText.textContent = txt; statusText.style.color = col;
 }
 
-function isWithinOperatingHours() {
-    const ahora = new Date();
-    const horas = ahora.getHours();
-    return horas >= 5 && horas < 23; // 5:00 AM a 10:59 PM
-}
-
-function handleLocationUpdate(pos) {
-    const { latitude, longitude, speed, heading } = pos.coords;
-
-    // --- SEGURIDAD: BLOQUEO POR VELOCIDAD ---
-    // 15 km/h ~= 4.16 m/s. Usamos 4 m/s como umbral.
-    const speedKmh = (speed || 0) * 3.6;
-    if (speedKmh > 15) {
-        if (drivingOverlay.style.display !== 'flex') {
-             drivingOverlay.style.display = 'flex'; // BLOQUEAR PANTALLA
-        }
-    } else {
-        // Pequeño buffer para evitar parpadeo si va justo a 15km/h
-        if (speedKmh < 12 && drivingOverlay.style.display !== 'none') {
-             drivingOverlay.style.display = 'none'; // DESBLOQUEAR PANTALLA
-        }
-    }
-    // ----------------------------------------
-
-    if (!isWithinOperatingHours()) {
-        if (statusText.textContent !== "Fuera de Horario") {
-             statusText.textContent = "Fuera de Horario";
-             statusText.style.color = "orange";
-        }
-        return; // Suspender envío
-    }
-
-    // locationCoords.textContent = `GPS: ${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
-
-    if (currentUnitId && estadoTurno.status !== "INACTIVO") {
-        db.collection('live_locations').doc(currentUnitId).set({
-            lat: latitude, lng: longitude, speed: speed, heading: heading,
-            routeId: currentRouteId, driverId: currentUser.uid, unitId: currentUnitId,
-            status: estadoTurno.status,
-            lastUpdate: firebase.firestore.FieldValue.serverTimestamp()
-        }).catch(e => console.warn("Error envío ubicación:", e));
-    }
-    checkGeofence(latitude, longitude);
-}
-
-function checkGeofence(lat, lng) {
-    if (estadoTurno.status === "INACTIVO" || !estadoTurno.paraderoBase || typeof turf === 'undefined') return;
+// --- CICLO MAESTRO (1s) ---
+function cicloRelojMaestro() {
+    const ahora = new Date().getTime();
     
-    const miUbicacion = turf.point([lng, lat]);
-    const baseUbicacion = turf.point([estadoTurno.paraderoBase.longitude, estadoTurno.paraderoBase.latitude]);
-    const distanciaMetros = turf.distance(miUbicacion, baseUbicacion, { units: 'kilometers' }) * 1000;
-
-    if (estadoTurno.status === "EN_RUTA") {
-        if (distanciaMetros < 80) {
-            console.log("Geofence: Llegada a base.");
-            iniciarDescanso();
-        }
-    } else if (estadoTurno.status === "LISTO_PARA_SALIR") {
-        if (distanciaMetros > 100) {
-            console.log("Geofence: Salida de base.");
-            iniciarRuta();
-        }
-    }
-}
-
-// --- MÁQUINA DE ESTADOS ---
-function checkTimeBasedStates() {
-    if (estadoTurno.status === "INACTIVO" || !estadoTurno.proximaSalida) return;
-    const ahora = new Date();
-
-    if (estadoTurno.status === "EN_RUTA") {
-        if (estadoTurno.proximoRegreso && ahora > estadoTurno.proximoRegreso && !estadoTurno.retrasoReportado) {
-            triggerRetraso("Retraso en Ruta", "Tu tiempo de regreso ha expirado.");
-        }
-    } else if (estadoTurno.status === "EN_DESCANSO") {
-        if (ahora >= estadoTurno.proximaSalida) {
-            marcarComoListoParaSalir();
-        }
-    } else if (estadoTurno.status === "LISTO_PARA_SALIR") {
-        if (ahora.getTime() > (estadoTurno.proximaSalida.getTime() + 300000) && !estadoTurno.retrasoReportado) {
-            triggerRetraso("Retraso en Salida", "Ya deberías haber salido de la base.");
-        }
-    }
-}
-
-function triggerRetraso(tipo, mensaje) {
-    estadoTurno.status = "RETRASADO";
-    // Solo mostrar el modal si NO están conduciendo
-    if (drivingOverlay.style.display !== 'flex') {
-        modalRetraso.style.display = 'flex';
-    }
-    enviarAlertaNativa(tipo, mensaje);
-    reportarRetraso(tipo); 
-}
-
-// --- TRANSICIONES ---
-async function iniciarDescanso() {
-    const ahora = new Date();
-    const nuevaSalida = new Date(ahora.getTime() + estadoTurno.tiempoDescansoMin * 60000);
-    const nuevoRegreso = new Date(nuevaSalida.getTime() + estadoTurno.duracionVueltaMin * 60000);
-
-    estadoTurno.status = "EN_DESCANSO";
-    estadoTurno.proximaSalida = nuevaSalida;
-    estadoTurno.proximoRegreso = nuevoRegreso;
-    estadoTurno.retrasoReportado = false;
-
-    try {
-        const unidadRef = db.collection('unidades').doc(currentUnitId);
-        if (currentVueltaDocId) {
-            const vueltaRef = unidadRef.collection('vueltas_log').doc(currentVueltaDocId);
-            const snap = await vueltaRef.get();
-            if (snap.exists) {
-                const plan = snap.data().regreso_plan.toDate();
-                await vueltaRef.update({
-                    regreso_real: ahora, status: "COMPLETADA",
-                    desviacionRegreso: Math.round((ahora.getTime() - plan.getTime()) / 60000)
-                });
+    // 1. Actualizar Timer Gigante y Semáforo
+    if (estadoTurno.proximaSalida) {
+        let objetivo = (estadoTurno.status === 'EN_RUTA') ? estadoTurno.proximoRegreso : estadoTurno.proximaSalida;
+        if (objetivo) {
+            const restante = objetivo.getTime() - ahora;
+            actualizarSemaforo(restante, estadoTurno.status);
+            if (document.querySelector('.container.modo-base')) {
+                document.getElementById('timer-gigante').textContent = formatTimer(restante);
             }
         }
-        const numVuelta = ((await unidadRef.get()).data().vueltasCompletadas || 0) + 1;
-        await unidadRef.update({
-            status: "EN_DESCANSO", proximaSalida: nuevaSalida, proximoRegreso: nuevoRegreso,
-            retrasoInfo: null, vueltasCompletadas: numVuelta
-        });
-        const nuevaVuelta = await unidadRef.collection('vueltas_log').add({
-            vueltaNum: numVuelta + 1, salida_plan: nuevaSalida, regreso_plan: nuevoRegreso,
-            status: "PENDIENTE", creado: firebase.firestore.FieldValue.serverTimestamp()
-        });
-        currentVueltaDocId = nuevaVuelta.id;
-        enviarAlertaNativa("Llegada a Base", "Descanso iniciado.");
-    } catch (e) { console.error("Error iniciarDescanso:", e); }
+    }
+
+    // 2. Verificar alertas automáticas (cada 15s aprox)
+    if (ahora - lastStateCheck > 15000) {
+        verificarEstadosAutomaticos();
+        lastStateCheck = ahora;
+    }
+}
+
+function actualizarSemaforo(ms, status) {
+    semaforoBar.className = ''; // Reset
+    const mins = ms / 60000;
+    if (status === 'EN_RUTA') {
+        if (mins > 5) semaforoBar.classList.add('semaforo-verde');
+        else if (mins > 0) semaforoBar.classList.add('semaforo-amarillo');
+        else semaforoBar.classList.add('semaforo-rojo');
+    } else if (status === 'EN_DESCANSO') {
+        if (mins > 2) semaforoBar.classList.add('semaforo-verde');
+        else if (mins > 0) semaforoBar.classList.add('semaforo-amarillo');
+        else semaforoBar.classList.add('semaforo-rojo');
+    }
+}
+
+function verificarEstadosAutomaticos() {
+    if (estadoTurno.status === "INACTIVO" || !estadoTurno.proximaSalida) return;
+    const ahora = new Date();
+    if (estadoTurno.status === "EN_RUTA") {
+        if (estadoTurno.proximoRegreso && ahora > estadoTurno.proximoRegreso && !estadoTurno.retrasoReportado) triggerRetraso("Retraso en Ruta", "Tiempo expirado.");
+    } else if (estadoTurno.status === "EN_DESCANSO") {
+        if (ahora >= estadoTurno.proximaSalida) marcarComoListoParaSalir();
+    } else if (estadoTurno.status === "LISTO_PARA_SALIR") {
+        // 5 min tolerancia antes de alerta
+        if (ahora.getTime() > (estadoTurno.proximaSalida.getTime() + 300000) && !estadoTurno.retrasoReportado) triggerRetraso("Retraso Salida", "Debiste salir hace 5min.");
+    }
+}
+
+// --- GEOLOCALIZACIÓN OPTIMIZADA ---
+async function iniciarGPS() {
+    if (watchId) return;
+    if (gpsRetryTimeout) { clearTimeout(gpsRetryTimeout); gpsRetryTimeout = null; }
+    try {
+        await Capacitor.Plugins.BackgroundGeolocation.requestPermissions();
+        watchId = await Capacitor.Plugins.BackgroundGeolocation.addWatcher(
+            {
+                backgroundMessage: "Ubicación activa.", backgroundTitle: "Turno Koox",
+                requestPermissions: true, stale: false, distanceFilter: 30 // Ahorro de batería
+            }, 
+            (pos, err) => {
+                if (err) {
+                    if (currentUnitId && !gpsRetryTimeout) { // Autorecuperación
+                        gpsRetryTimeout = setTimeout(() => { gpsRetryTimeout = null; stopTracking().then(iniciarGPS); }, 10000);
+                    }
+                    return;
+                }
+                if (pos) procesarUbicacion(pos);
+            }
+        );
+    } catch (e) {
+        alert("Error GPS. Reintentando en 5s...");
+        setTimeout(iniciarGPS, 5000);
+    }
+}
+
+function procesarUbicacion(pos) {
+    // 1. Bloqueo por velocidad (>15km/h) - OLED Friendly
+    const speed = (pos.speed || 0) * 3.6;
+    if (speed > 15) {
+        if (drivingOverlay.style.display !== 'flex') drivingOverlay.style.display = 'flex';
+        modalRetraso.style.display = 'none'; modalApoyo.style.display = 'none'; // Seguridad primero
+    } else if (speed < 10 && drivingOverlay.style.display !== 'none') {
+        drivingOverlay.style.display = 'none';
+    }
+
+    // 2. Horario Operativo (5am-11pm)
+    const h = new Date().getHours();
+    if (h < 5 || h >= 23) return;
+
+    // 3. Enviar a Firebase
+    if (currentUnitId && estadoTurno.status !== 'INACTIVO') {
+        db.collection('live_locations').doc(currentUnitId).set({
+            lat: pos.latitude, lng: pos.longitude, heading: pos.bearing || 0, speed: pos.speed || 0,
+            routeId: currentRouteId, unitId: currentUnitId, driverId: currentUser.uid,
+            status: estadoTurno.status, lastUpdate: firebase.firestore.FieldValue.serverTimestamp()
+        }).catch(() => {});
+    }
+    // 4. Geofence
+    verificarGeofence(pos.latitude, pos.longitude);
+}
+
+function verificarGeofence(lat, lng) {
+    if (!estadoTurno.paraderoBase || typeof turf === 'undefined') return;
+    const dist = turf.distance([lng, lat], [estadoTurno.paraderoBase.longitude, estadoTurno.paraderoBase.latitude], {units: 'kilometers'});
+    if (estadoTurno.status === 'EN_RUTA' && dist < 0.08) cambiarEstado('EN_DESCANSO');
+    else if ((estadoTurno.status === 'LISTO_PARA_SALIR' || estadoTurno.status === 'EN_DESCANSO') && dist > 0.15) cambiarEstado('EN_RUTA');
+}
+
+// --- TRANSICIONES DE ESTADO ---
+async function cambiarEstado(nuevo) {
+    if (nuevo === estadoTurno.status) return;
+    const updates = { status: nuevo, retrasoInfo: null };
+    const now = new Date();
+    try {
+        if (nuevo === 'EN_DESCANSO') { // LLEGADA
+            if (currentVueltaDocId) db.collection('unidades').doc(currentUnitId).collection('vueltas_log').doc(currentVueltaDocId).update({ regreso_real: now, status: 'COMPLETADA' });
+            const s = new Date(now.getTime() + estadoTurno.tiempoDescansoMin*60000);
+            const r = new Date(s.getTime() + estadoTurno.duracionVueltaMin*60000);
+            updates.proximaSalida = s; updates.proximoRegreso = r;
+            updates.vueltasCompletadas = firebase.firestore.FieldValue.increment(1);
+            const nv = await db.collection('unidades').doc(currentUnitId).collection('vueltas_log').add({
+                salida_plan: s, regreso_plan: r, status: 'PENDIENTE', creado: firebase.firestore.FieldValue.serverTimestamp()
+            });
+            currentVueltaDocId = nv.id;
+            enviarNotificacion("Llegada a Base", "Descanso iniciado.");
+        } else if (nuevo === 'EN_RUTA') { // SALIDA
+            if (currentVueltaDocId) db.collection('unidades').doc(currentUnitId).collection('vueltas_log').doc(currentVueltaDocId).update({ salida_real: now, status: 'EN_RUTA' });
+            enviarNotificacion("Ruta Iniciada", "Buen viaje.");
+        }
+        await db.collection('unidades').doc(currentUnitId).update(updates);
+    } catch (e) { console.error(e); }
 }
 
 async function marcarComoListoParaSalir() {
     estadoTurno.status = "LISTO_PARA_SALIR";
-    enviarAlertaNativa("¡Hora de Salir!", "Tu tiempo de descanso terminó.");
+    enviarNotificacion("¡Hora de Salir!", "Tu tiempo terminó.");
     db.collection('unidades').doc(currentUnitId).update({ status: "LISTO_PARA_SALIR" });
 }
 
-async function iniciarRuta() {
-    const ahora = new Date();
-    estadoTurno.status = "EN_RUTA";
-    estadoTurno.retrasoReportado = false;
-    try {
-        const unidadRef = db.collection('unidades').doc(currentUnitId);
-        await unidadRef.update({ status: "EN_RUTA", retrasoInfo: null });
-        if (currentVueltaDocId) {
-            const vueltaRef = unidadRef.collection('vueltas_log').doc(currentVueltaDocId);
-            const snap = await vueltaRef.get();
-            if (snap.exists) {
-                const plan = snap.data().salida_plan.toDate();
-                await vueltaRef.update({
-                    salida_real: ahora, status: "EN_RUTA",
-                    desviacionSalida: Math.round((ahora.getTime() - plan.getTime()) / 60000)
-                });
-            }
-        }
-        enviarAlertaNativa("Ruta Iniciada", "Buen viaje.");
-    } catch (e) { console.error("Error iniciarRuta:", e); }
+// --- FINALIZAR TURNO ROBUSTO ---
+stopShiftBtn.addEventListener('click', async () => {
+    stopShiftBtn.disabled = true; stopShiftBtn.textContent = "Finalizando...";
+    await stopTracking();
+});
+
+async function stopTracking() {
+    if (watchId) { try { await Capacitor.Plugins.BackgroundGeolocation.removeWatcher({ id: watchId }); } catch (e) {} watchId = null; }
+    if (masterClockInterval) { clearInterval(masterClockInterval); masterClockInterval = null; }
+    if (gpsRetryTimeout) clearTimeout(gpsRetryTimeout);
+    if (drivingOverlay) drivingOverlay.style.display = 'none';
+
+    const u = currentUnitId;
+    if (u && currentUser) {
+        try {
+            await db.collection('live_locations').doc(u).delete();
+            await db.collection('unidades').doc(u).update({
+                status: 'INACTIVO', currentDriverId: null, assignedRouteId: null,
+                proximaSalida: null, proximoRegreso: null, retrasoInfo: null
+            });
+        } catch (e) { console.warn("Error red finalizando:", e); return false; }
+    }
+    limpiarSesionLocal();
+    return true;
 }
 
-async function reportarRetraso(motivo) {
-    try {
-        const unidadRef = db.collection('unidades').doc(currentUnitId);
-        await unidadRef.update({ status: "RETRASADO", retrasoInfo: motivo });
-        if (currentVueltaDocId) {
-            await unidadRef.collection('vueltas_log').doc(currentVueltaDocId).update({ status: "RETRASADO", reporte: motivo });
-        }
-    } catch (e) { console.error("Error reportarRetraso:", e); }
+function limpiarSesionLocal() {
+    currentUnitId = null; currentVueltaDocId = null;
+    startShiftBtn.style.display = 'block'; startShiftBtn.disabled = false;
+    if (controlesActivos) controlesActivos.style.display = 'none';
+    document.getElementById('info-ruta-asignada').style.display = 'none';
+    document.getElementById('panel-horario-dinamico').style.display = 'none';
+    if (progresoTurno) progresoTurno.style.display = 'none';
+    statusText.textContent = "Desconectado"; statusText.style.color = "#666";
+    semaforoBar.className = '';
+    document.querySelector('.container').classList.remove('modo-base');
+    if (listeners.unit) { listeners.unit(); listeners.unit = null; }
+    stopShiftBtn.textContent = "Terminar Turno"; // Reset texto botón
 }
 
-// --- FUNCIONES AUXILIARES ---
-async function buscarTurnoActivo(uid) {
+// --- MODALES Y APOYO ---
+document.getElementById('solicitar-apoyo-button')?.addEventListener('click', () => modalApoyo.style.display = 'flex');
+document.getElementById('btn-cerrar-apoyo')?.addEventListener('click', () => modalApoyo.style.display = 'none');
+modalApoyo?.addEventListener('click', async (e) => {
+    const tipo = e.target.dataset.tipoApoyo;
+    if (tipo && confirm(`¿Solicitar: ${tipo}?`)) {
+        await db.collection('alertas_activas').add({
+            tipo, unitId: currentUnitId, driverId: currentUser.uid,
+            routeId: currentRouteId, timestamp: firebase.firestore.FieldValue.serverTimestamp(), atendido: false
+        });
+        alert("Solicitud enviada."); modalApoyo.style.display = 'none';
+    }
+});
+document.getElementById('btn-regresar-normal')?.addEventListener('click', () => document.querySelector('.container').classList.remove('modo-base'));
+
+// --- HELPERS ---
+function triggerRetraso(t, m) {
+    estadoTurno.status = "RETRASADO";
+    if (drivingOverlay.style.display !== 'flex') modalRetraso.style.display = 'flex';
+    enviarNotificacion(t, m); reportarRetraso(t);
+}
+async function reportarRetraso(m) {
+    await db.collection('unidades').doc(currentUnitId).update({ status: 'RETRASADO', retrasoInfo: m });
+    if (currentVueltaDocId) db.collection('unidades').doc(currentUnitId).collection('vueltas_log').doc(currentVueltaDocId).update({ status: 'RETRASADO', reporte: m });
+}
+function enviarNotificacion(t, b) {
+    try { Capacitor.Plugins.Haptics.vibrate(); Capacitor.Plugins.LocalNotifications.schedule({ notifications: [{ title: t, body: b, id: notificationIdCounter++, channelId: 'koox-alertas' }] }); } catch (e) {}
+}
+function formatHora(d) { return d ? `${d.getHours()%12||12}:${d.getMinutes().toString().padStart(2,'0')} ${d.getHours()>=12?'PM':'AM'}` : "--:--"; }
+function formatTimer(ms) {
+    const s = Math.abs(Math.floor(ms/1000)), h = Math.floor(s/3600), m = Math.floor((s%3600)/60), sec = s%60;
+    return (ms<0?"-":"")+(h>0?`${h}:${m.toString().padStart(2,'0')}`:`${m}:${sec.toString().padStart(2,'0')}`);
+}
+async function recuperarTurnoActivo() {
     try {
-        const snap = await db.collection('unidades').where('currentDriverId', '==', uid).where('status', '!=', 'INACTIVO').limit(1).get();
-        if (!snap.empty) {
-            unitNumberInput.value = snap.docs[0].id;
-            startShiftButton.click();
-        }
+        const s = await db.collection('unidades').where('currentDriverId', '==', currentUser.uid).where('status', '!=', 'INACTIVO').limit(1).get();
+        if (!s.empty) { unitInput.value = s.docs[0].id; startShiftBtn.click(); }
+    } catch (e) {}
+}
+async function recuperarVueltaID() {
+    try {
+        const l = await db.collection('unidades').doc(currentUnitId).collection('vueltas_log').where('status', 'in', ['PENDIENTE','EN_RUTA']).limit(1).get();
+        if (!l.empty) currentVueltaDocId = l.docs[0].id;
     } catch (e) {}
 }
 
-function actualizarPanelHorario(status, salida, regreso) {
-    panelHorario.style.display = 'block';
-    const format = (d) => {
-        if (!d) return "--:--";
-        let h = d.getHours(), m = d.getMinutes();
-        const ampm = h >= 12 ? 'PM' : 'AM';
-        h = h % 12 || 12;
-        return `${h}:${m < 10 ? '0'+m : m} ${ampm}`;
-    };
-    horarioSalida.textContent = format(salida);
-    horarioRegreso.textContent = format(regreso);
-    switch(status) {
-        case "EN_DESCANSO": statusText.textContent = "En Base (Cargando)"; statusText.style.color = "blue"; break;
-        case "LISTO_PARA_SALIR": statusText.textContent = "¡Salida Autorizada!"; statusText.style.color = "#E69500"; break;
-        case "EN_RUTA": statusText.textContent = "En Ruta"; statusText.style.color = "green"; break;
-        case "RETRASADO": statusText.textContent = "¡Retrasado!"; statusText.style.color = "red"; break;
-        case "EN_ESPERA": statusText.textContent = "Esperando Asignación..."; statusText.style.color = "gray"; break;
-        default: statusText.textContent = status; statusText.style.color = "black";
-    }
-}
-
-async function enviarAlertaNativa(titulo, cuerpo) {
-    try {
-        await Capacitor.Plugins.Haptics.vibrate({ duration: 1000 });
-        await Capacitor.Plugins.LocalNotifications.schedule({
-            notifications: [{
-                title: titulo, body: cuerpo, id: notificationIdCounter++,
-                channelId: 'koox-alertas', importance: 5
-            }]
-        });
-    } catch (e) {
-        if (!window.Capacitor || !window.Capacitor.isNative) alert(`${titulo}\n${cuerpo}`);
-    }
-}
+// --- EVENT LISTENERS BASE ---
+loginBtn.addEventListener('click', () => {
+    loginBtn.disabled = true; loginBtn.textContent = "Conectando...";
+    auth.signInWithEmailAndPassword(document.getElementById('login-email').value, document.getElementById('login-password').value)
+        .catch(e => { loginError.textContent = e.message; loginError.style.display = 'block'; loginBtn.disabled = false; loginBtn.textContent = "Iniciar Sesión"; });
+});
+logoutButton.addEventListener('click', async () => {
+    if (estadoTurno.status !== "INACTIVO" && !confirm("Turno activo. ¿Salir?")) return;
+    await stopTracking(); auth.signOut();
+});

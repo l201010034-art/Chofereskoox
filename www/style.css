@@ -1,9 +1,11 @@
-/* Estilos básicos para la app de chofer */
+/* --- style.css V1.0 FINAL --- */
+
+/* Estilos base */
 body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     background-color: #f4f7f6;
     margin: 0;
-    padding: 20px;
+    padding: 15px; /* Un poco menos de padding para aprovechar espacio */
     display: flex;
     justify-content: center;
     align-items: center;
@@ -18,233 +20,143 @@ body {
     border-radius: 12px;
     box-shadow: 0 6px 16px rgba(0, 0, 0, 0.07);
     overflow: hidden;
+    position: relative; /* Para el semáforo */
+    padding-top: 15px; /* Espacio para el semáforo */
 }
 
-.screen {
-    padding: 25px 30px;
-    display: none; /* Ocultas por defecto */
-}
-.screen.active {
-    display: block; /* Muestra la pantalla activa */
-}
-
-h2 {
-    text-align: center;
-    color: #333;
-    margin-top: 0;
-    margin-bottom: 25px;
-}
-
-.form-group {
-    margin-bottom: 20px;
-}
-
-label {
-    display: block;
-    margin-bottom: 8px;
-    font-weight: 600;
-    color: #555;
-}
-
-input[type="email"],
-input[type="password"],
-input[type="number"],
-select {
+/* --- NUEVO: SEMÁFORO DE ADHERENCIA --- */
+#semaforo-bar {
+    position: absolute;
+    top: 0;
+    left: 0;
     width: 100%;
-    padding: 12px 14px;
-    border: 1px solid #ddd;
-    border-radius: 8px;
-    box-sizing: border-box; /* Importante para el padding */
-    font-size: 16px;
+    height: 12px;
+    background-color: #ccc; /* Gris neutro inicial */
+    transition: background-color 0.5s ease;
+}
+.semaforo-verde { background-color: #34c759 !important; }
+.semaforo-amarillo { background-color: #ffcc00 !important; }
+.semaforo-rojo { background-color: #ff3b30 !important; }
+
+/* --- Pantallas --- */
+.screen { padding: 20px 25px; display: none; }
+.screen.active { display: block; }
+
+h2 { text-align: center; color: #333; margin-top: 0; margin-bottom: 20px; }
+
+/* --- Formularios y Botones --- */
+.form-group { margin-bottom: 15px; }
+label { display: block; margin-bottom: 6px; font-weight: 600; color: #555; }
+input[type="email"], input[type="password"], input[type="text"], input[type="number"] {
+    width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px;
+    box-sizing: border-box; font-size: 16px;
 }
 
 button {
-    width: 100%;
-    padding: 14px;
-    font-size: 16px;
-    font-weight: 700;
-    border-radius: 8px;
-    border: none;
-    cursor: pointer;
-    background-color: #007aff; /* Azul principal */
-    color: white;
-    transition: background-color 0.2s ease;
-    margin-top: 10px;
+    width: 100%; padding: 14px; font-size: 16px; font-weight: 700;
+    border-radius: 8px; border: none; cursor: pointer;
+    background-color: #007aff; color: white;
+    transition: all 0.2s ease; margin-top: 10px;
+}
+button:hover { background-color: #0056b3; }
+button:disabled { background-color: #cdd3d8; cursor: not-allowed; }
+button.danger { background-color: #ff3b30; }
+button.secundario { background-color: #6c757d; margin-top: 15px; }
+/* Nuevo botón de apoyo */
+button.apoyo { background-color: #ff9500; color: white; } 
+
+.error-message { color: #ff3b30; text-align: center; font-size: 14px; display: none; }
+.password-warning {
+    margin-top: 20px; padding: 10px; background-color: #fffbe6;
+    border: 1px solid #ffe58f; border-radius: 8px; font-size: 14px; text-align: center; color: #5d5024;
 }
 
-button:hover {
-    background-color: #0056b3;
+/* --- NUEVO: BOLETÍN Y PROGRESO --- */
+#boletin-container {
+    background-color: #fff3cd;
+    border-left: 5px solid #ffc107;
+    padding: 10px;
+    margin-bottom: 15px;
+    font-size: 0.9em;
+    color: #856404;
+    display: none; /* Se muestra solo si hay mensaje */
 }
-
-button:disabled {
-    background-color: #cdd3d8;
-    cursor: not-allowed;
-}
-
-button.danger {
-    background-color: #ff3b30; /* Rojo peligro */
-}
-button.danger:hover {
-    background-color: #c30000;
-}
-
-/* Estilo para botones secundarios */
-button.secundario {
-    background-color: #6c757d;
-    margin-top: 20px;
-}
-button.secundario:hover {
-    background-color: #5a6268;
-}
-
-.error-message {
-    color: #ff3b30;
+#progreso-turno {
     text-align: center;
-    font-size: 14px;
-    display: none; /* Oculto por defecto */
+    font-size: 1.1em;
+    color: #555;
+    margin-bottom: 15px;
+    background: #f8f9fa;
+    padding: 8px;
+    border-radius: 6px;
 }
+#progreso-turno strong { color: #007aff; }
+
+/* --- Paneles de Información --- */
+.ruta-display {
+    font-size: 1.2em; font-weight: bold; color: #007aff;
+    background-color: #f0f8ff; padding: 10px; border-radius: 8px; text-align: center; margin: 0;
+}
+.checador-display { font-size: 0.9em; font-style: italic; color: #555; text-align: center; margin: 5px 0 0 0; }
 
 #status-message {
-    margin-top: 25px;
-    padding: 15px;
-    background-color: #f0f0f0;
-    border-radius: 8px;
-    text-align: center;
+    margin-top: 20px; padding: 15px; background-color: #f0f0f0;
+    border-radius: 8px; text-align: center;
 }
-#status-message p {
-    margin: 5px 0;
-}
-#status-text {
-    font-weight: 700;
-}
+#status-text { font-weight: 700; font-size: 1.2em; }
 
-.password-warning {
-    margin-top: 20px;
-    padding: 10px;
-    background-color: #fffbe6; /* Amarillo pálido */
-    border: 1px solid #ffe58f;
-    border-radius: 8px;
-    font-size: 14px;
+/* --- NUEVO: TEMPORIZADOR GIGANTE --- */
+.modo-base #main-screen-content { display: none; } /* Oculta lo normal en base */
+#panel-gigante-base {
+    display: none; /* Oculto por defecto */
     text-align: center;
-    color: #5d5024;
-}
-
-.ruta-display {
-    font-size: 1.2em;
-    font-weight: bold;
-    color: #007aff; /* Azul */
-    background-color: #f0f8ff;
-    padding: 10px;
-    border-radius: 8px;
-    text-align: center;
-    margin: 0;
-}
-
-.checador-display {
-    font-size: 0.9em;
-    font-style: italic;
-    color: #555;
-    text-align: center;
-    margin: 5px 0 0 0;
-}
-
-/* --- Estilos para Horario Dinámico (Chofer) --- */
-.horario-panel {
-    background-color: #f0f8ff;
-    border: 1px solid #b0dfff;
-    border-radius: 8px;
-    padding: 15px;
+    padding: 40px 20px;
+    background-color: #e3f2fd;
+    border-radius: 12px;
     margin-top: 20px;
 }
-.horario-panel h4 {
-    margin-top: 0;
-    margin-bottom: 10px;
-    color: #0056b3;
-}
-.horario-panel p {
-    margin: 5px 0;
-    font-size: 1.1em;
-}
-.horario-panel p span {
-    font-weight: bold;
-    color: #333;
-    float: right;
-}
+.modo-base #panel-gigante-base { display: block; } /* Se muestra en modo base */
 
-/* --- Estilos para Modales --- */
+#timer-gigante {
+    font-size: 5em; /* ¡ENORME! */
+    font-weight: 800;
+    color: #0d47a1;
+    font-variant-numeric: tabular-nums; /* Evita que los números "bailen" */
+    line-height: 1;
+}
+#timer-label { font-size: 1.5em; color: #555; margin-bottom: 10px; }
+#info-salida-base { font-size: 1.2em; color: #333; margin-top: 20px; }
+
+/* --- Modales --- */
 .modal-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0,0,0,0.6);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 2000;
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.8); /* Más oscuro para enfoque */
+    display: none; align-items: center; justify-content: center; z-index: 2000;
 }
 .modal-contenido {
-    background: white;
-    padding: 25px;
-    border-radius: 12px;
-    width: 90%;
-    max-width: 400px;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+    background: white; padding: 25px; border-radius: 15px;
+    width: 85%; max-width: 380px; text-align: center;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
 }
-.modal-contenido h4 {
-    margin-top: 0;
-    text-align: center;
-}
+.modal-contenido h4 { margin-top: 0; font-size: 1.4em; color: #333; }
 .btn-modal-opcion {
-    display: block;
-    width: 100%;
-    padding: 14px;
-    margin-top: 10px;
-    font-size: 16px;
-    font-weight: 700;
-    border-radius: 8px;
-    border: none;
-    cursor: pointer;
-    background-color: #ffc107; /* Amarillo */
-    color: #333;
+    display: block; width: 100%; padding: 15px; margin-top: 12px;
+    font-size: 16px; font-weight: 600; border-radius: 10px; border: none;
+    cursor: pointer; background-color: #f0f0f0; color: #333;
+    text-align: left; transition: background-color 0.2s;
 }
-.btn-modal-opcion.secundario {
-    background-color: #6c757d; /* Gris */
-    color: white;
-}
+.btn-modal-opcion:hover { background-color: #e0e0e0; }
+/* Colores específicos para opciones de apoyo */
+.btn-apoyo-urgente { background-color: #ffebee; color: #d32f2f; border: 1px solid #ffcdd2; }
+.btn-apoyo-tecnico { background-color: #e3f2fd; color: #1976d2; border: 1px solid #bbdefb; }
 
-/* --- MODO CONDUCCIÓN (NUEVO) --- */
+/* --- Pantalla de Bloqueo (Modo Conducción) --- */
 #driving-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background-color: rgba(0, 0, 0, 0.95); /* Casi totalmente opaco */
-    color: white;
-    display: none; /* Flex cuando se activa */
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    z-index: 3000; /* El más alto de todos */
-    padding: 20px;
-    box-sizing: border-box;
-    text-align: center;
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background-color: #000000; /* Negro OLED */
+    color: #666; /* Texto tenue para no deslumbrar */
+    display: none; flex-direction: column; justify-content: center; align-items: center;
+    z-index: 3000; padding: 30px; box-sizing: border-box; text-align: center;
 }
-
-#driving-icon {
-    font-size: 80px;
-    margin-bottom: 20px;
-}
-
-#driving-overlay h2 {
-    color: #ff3b30;
-    font-size: 2em;
-    margin-bottom: 10px;
-}
-
-#driving-overlay p {
-    font-size: 1.3em;
-    color: #ccc;
-}
+#driving-icon { font-size: 80px; opacity: 0.5; margin-bottom: 30px; }
+#driving-overlay h2 { color: #333; /* Muy tenue */ }

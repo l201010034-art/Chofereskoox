@@ -5,6 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>App Chofer - RutasKoox</title>
     
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
+
     <meta http-equiv="Content-Security-Policy" content="default-src * 'unsafe-inline' 'unsafe-eval' data: blob:;">
     
     <link rel="stylesheet" href="style.css">
@@ -12,6 +16,8 @@
 <body>
     <div class="container">
         
+        <div id="semaforo-bar"></div>
+
         <div id="login-screen" class="screen active">
             <h2>Iniciar Sesión (Chofer)</h2>
             <input type="email" id="login-email" placeholder="Correo electrónico" value="chofer1@koox.com">
@@ -21,69 +27,104 @@
         </div>
 
         <div id="main-screen" class="screen">
-            <h2>Panel de Chofer</h2>
-            <p>Bienvenido, <span id="driver-email"></span></p>
             
-            <div id="info-ruta-asignada" class="form-group" style="display: none;">
-                <label>Ruta Asignada:</label>
-                <p id="ruta-asignada-texto" class="ruta-display"></p>
-                <p id="checador-asignado-texto" class="checador-display"></p>
-            </div>
-            
-            <div class="form-group">
-                <label for="unit-number">Número de Unidad:</label>
-                <input type="number" id="unit-number" placeholder="Ej: 74">
-            </div>
-            
-            <button id="start-shift-button">Iniciar Turno</button>
-            <button id="stop-shift-button" class="danger" disabled>Terminar Turno</button>
-            <button id="report-issue-button" class="secundario" style="display: none;">Reportar Incidencia</button>
+            <div id="main-screen-content">
+                <h2>Panel de Operador</h2>
+                <p>Operador: <span id="driver-email"></span></p>
+                
+                <div id="boletin-container">
+                    <strong>🔔 Central informa:</strong> <span id="boletin-texto"></span>
+                </div>
 
-            <div id="status-message">
-                <p><strong>Estado:</strong> <span id="status-text">Desconectado</span></p>
-                <p id="location-coords"></p>
+                <div id="progreso-turno" style="display: none;">
+                    Progreso: <strong>Vuelta <span id="vuelta-actual-num">--</span></strong>
+                </div>
+                
+                <div id="info-ruta-asignada" class="form-group" style="display: none;">
+                    <label>Ruta Asignada:</label>
+                    <p id="ruta-asignada-texto" class="ruta-display"></p>
+                    <p id="checador-asignado-texto" class="checador-display"></p>
+                </div>
+                
+                <div class="form-group">
+                    <label for="unit-number">Número de Unidad:</label>
+                    <input type="number" id="unit-number" placeholder="Ej: 74">
+                </div>
+                
+                <button id="start-shift-button">Conectar Unidad</button>
+                
+                <div id="controles-activos" style="display: none;">
+                    <button id="solicitar-apoyo-button" class="apoyo">🆘 Solicitar Apoyo Central</button>
+                    <button id="report-issue-button" class="secundario">Reportar Retraso (Tráfico)</button>
+                    <button id="stop-shift-button" class="danger">Terminar Turno</button>
+                </div>
+
+                <div id="status-message">
+                    <p><strong>Estado:</strong> <span id="status-text">Desconectado</span></p>
+                    </div>
+
+                <div id="panel-horario-dinamico" class="horario-panel" style="display: none;">
+                    <h4>Itinerario Actual</h4>
+                    <p><strong>Salida Programada:</strong> <span id="horario-salida">--:--</span></p>
+                    <p><strong>Llegada Estimada:</strong> <span id="horario-regreso">--:--</span></p>
+                </div>
             </div>
 
-            <div id="panel-horario-dinamico" class="horario-panel" style="display: none;">
-                <h4>Tu Próximo Horario</h4>
-                <p><strong>Salida:</strong> <span id="horario-salida">--:--</span></p>
-                <p><strong>Regreso Estimado:</strong> <span id="horario-regreso">--:--</span></p>
+            <div id="panel-gigante-base">
+                <h2>En Base</h2>
+                <div id="timer-label">Tiempo para Salida:</div>
+                <div id="timer-gigante">--:--</div>
+                <div id="info-salida-base">Salida programada: <span id="hora-salida-base">--:--</span></div>
+                <button id="btn-regresar-normal" class="secundario" style="margin-top: 30px;">Ver Panel Completo</button>
             </div>
             
-            <button id="logout-button" class="secundario">Cerrar Sesión</button>
         </div>
 
         <div id="profile-screen" class="screen">
             <h2>Completa tu Perfil</h2>
-            <p>¡Bienvenido! Es tu primer inicio de sesión. Por favor ingresa tu nombre completo.</p>
+            <p>¡Bienvenido! Por favor ingresa tu nombre completo.</p>
             <div class="form-group">
                 <label for="driver-name">Nombre Completo:</label>
                 <input type="text" id="driver-name" placeholder="Ej: Juan Pérez López">
             </div>
             <button id="save-profile-button">Guardar Perfil</button>
-            <div class="password-warning">
-                <strong>¡Importante!</strong> La contraseña es temporal.
-            </div>
         </div>
 
     </div>
 
     <div id="modal-retraso" class="modal-overlay" style="display: none;">
         <div class="modal-contenido">
-            <h4>¿Qué está pasando?</h4>
-            <p>Hemos detectado un retraso. Por favor, informa el motivo.</p>
-            <button class="btn-modal-opcion" data-motivo="Tráfico">Congestión Vehicular</button>
-            <button class="btn-modal-opcion" data-motivo="Desvío de Ruta">Desvío de Ruta</button>
-            <button class="btn-modal-opcion" data-motivo="Percance Vial">Percance Vial</button>
-            <button class="btn-modal-opcion" data-motivo="Reset de Unidad">Mantenimiento (Reset)</button>
-            <button id="btn-cerrar-modal" class="btn-modal-opcion secundario">Solo estoy detenido</button>
+            <h4>Reportar Motivo de Retraso</h4>
+            <button class="btn-modal-opcion" data-motivo="Tráfico Pesado">🚗 Tráfico Pesado</button>
+            <button class="btn-modal-opcion" data-motivo="Accidente en la vía">💥 Accidente en la vía (ajeno)</button>
+            <button class="btn-modal-opcion" data-motivo="Desvío por obra">🚧 Desvío por obra</button>
+            <button class="btn-modal-opcion" data-motivo="Lluvia/Clima">🌧️ Clima adverso</button>
+            <button id="btn-cerrar-modal" class="btn-modal-opcion secundario">Cancelar</button>
+        </div>
+    </div>
+
+    <div id="modal-apoyo" class="modal-overlay" style="display: none;">
+        <div class="modal-contenido">
+            <h4>Solicitar Apoyo a Central</h4>
+            <p>Selecciona el tipo de asistencia:</p>
+            
+            <button class="btn-modal-opcion btn-apoyo-urgente" data-tipo-apoyo="EMERGENCIA">🚑 EMERGENCIA (Médica/Seguridad)</button>
+            <button class="btn-modal-opcion btn-apoyo-urgente" data-tipo-apoyo="FALLA CRÍTICA">🛑 Unidad Detenida (Grúa)</button>
+            
+            <hr style="margin: 15px 0; opacity: 0.3;">
+            
+            <button class="btn-modal-opcion btn-apoyo-tecnico" data-tipo-apoyo="FALLA MENOR">🔧 Falla Mecánica (Puedo avanzar)</button>
+            <button class="btn-modal-opcion" data-tipo-apoyo="INCIDENTE VIAL">⚠️ Incidente Vial Leve</button>
+            <button class="btn-modal-opcion" data-tipo-apoyo="SOLICITUD LLAMADA">📞 Solicitud de Llamada</button>
+            
+            <button id="btn-cerrar-apoyo" class="btn-modal-opcion secundario" style="margin-top: 15px;">Cancelar</button>
         </div>
     </div>
 
     <div id="driving-overlay">
         <div id="driving-icon">🛑</div>
-        <h2>Vehículo en Movimiento</h2>
-        <p>Por tu seguridad, la app está bloqueada mientras conduces.</p>
+        <h2>Modo Conducción</h2>
+        <p>Pantalla bloqueada por tu seguridad.</p>
     </div>
     
     <script src="capacitor.js"></script>
@@ -92,7 +133,7 @@
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
     
-    <script src="app.js?v=4"></script>
+    <script src="app.js?v=Final_1.0"></script>
     
 </body>
 </html>
