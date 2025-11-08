@@ -269,32 +269,60 @@ async function recuperarVueltaActiva() {
     } catch (e) { console.warn("No se pudo recuperar vuelta activa:", e); }
 }
 
-stopShiftButton.addEventListener('click', () => {
+// Listener de TERMINAR TURNO (Actualizado)
+stopShiftButton.addEventListener('click', async () => { // <--- Nota el async aquí
+    // Deshabilitar el botón para evitar doble clic mientras procesa
+    stopShiftButton.disabled = true;
+    stopShiftButton.textContent = "Finalizando...";
+
     if (estadoTurno.listenerTurno) {
         estadoTurno.listenerTurno();
         estadoTurno.listenerTurno = null;
     }
-    if (tickerInterval) {
-        clearInterval(tickerInterval);
-        tickerInterval = null;
+
+    // Llamamos a la nueva versión robusta y ESPERAMOS
+    const exito = await stopTracking();
+
+    if (exito) {
+        // Solo si Firebase confirmó el borrado, limpiamos la UI local
+        startShiftButton.disabled = false;
+        unitNumberInput.disabled = false;
+        unitNumberInput.value = "";
+        // stopShiftButton ya está disabled, lo dejamos así pero regresamos el texto
+        stopShiftButton.textContent = "Terminar Turno"; 
+        
+        reportIssueButton.style.display = 'none';
+        infoRutaAsignada.style.display = 'none';
+        const panelHorario = document.getElementById('panel-horario-dinamico');
+        if (panelHorario) panelHorario.style.display = 'none';
+        
+        statusText.textContent = "Desconectado";
+        statusText.style.color = "gray";
+        locationCoords.textContent = "";
+
+        currentUnitId = null;
+        currentRouteId = null;
+        currentVueltaDocId = null;
+        estadoTurno = { status: "INACTIVO", paraderoBase: null, duracionVueltaMin: 0, tiempoDescansoMin: 0, proximaSalida: null, proximoRegreso: null, listenerTurno: null, retrasoReportado: false };
+    } else {
+        // Si falló, reactivamos el botón para que pueda reintentar
+        stopShiftButton.disabled = false;
+        stopShiftButton.textContent = "Terminar Turno";
     }
-    stopTracking();
+});
 
-    startShiftButton.disabled = false;
-    unitNumberInput.disabled = false;
-    unitNumberInput.value = "";
-    stopShiftButton.disabled = true;
-    reportIssueButton.style.display = 'none';
-    infoRutaAsignada.style.display = 'none';
-    panelHorario.style.display = 'none';
-    statusText.textContent = "Desconectado";
-    statusText.style.color = "gray";
-    locationCoords.textContent = "";
-
-    currentUnitId = null;
-    currentRouteId = null;
-    currentVueltaDocId = null;
-    estadoTurno = { status: "INACTIVO", paraderoBase: null, duracionVueltaMin: 0, tiempoDescansoMin: 0, proximaSalida: null, proximoRegreso: null, listenerTurno: null, retrasoReportado: false };
+// Listener de CERRAR SESIÓN (Actualizado)
+logoutButton.addEventListener('click', async () => { // <--- Nota el async aquí
+    if (estadoTurno.status !== "INACTIVO") {
+        if (!confirm("Tienes un turno activo. ¿Seguro que quieres salir? Se terminará tu turno.")) {
+            return;
+        }
+        // Forzamos el término de turno y ESPERAMOS a que termine antes de salir
+        console.log("Cerrando sesión con turno activo, finalizando primero...");
+        await stopTracking(); 
+    }
+    console.log("Haciendo signOut de Firebase...");
+    auth.signOut();
 });
 
 // --- LÓGICA DE GEOLOCALIZACIÓN (OPTIMIZADA) ---
@@ -359,27 +387,72 @@ async function startTracking() {
     }
 }
  
+// --- LÓGICA DE GEOLOCALIZACIÓN (OPTIMIZADA Y BLINDADA) ---
+// ... (startTracking se queda igual) ...
+
 async function stopTracking() {
+    console.log("🛑 INICIANDO DETENCIÓN DE RASTREO...");
+    
+    // 1. Detener GPS nativo inmediatamente
     if (watchId) {
-        try { await Capacitor.Plugins.BackgroundGeolocation.removeWatcher({ id: watchId }); } catch (e) {}
+        try { await Capacitor.Plugins.BackgroundGeolocation.removeWatcher({ id: watchId }); } catch (e) { console.warn("Warning al detener watcher:", e); }
         watchId = null;
     }
     if (gpsRetryTimeout) {
         clearTimeout(gpsRetryTimeout);
         gpsRetryTimeout = null;
     }
-    // Asegurar que se quite el bloqueo de pantalla al terminar
-    drivingOverlay.style.display = 'none';
-
-    if (currentUnitId && currentUser) {
-        db.collection('live_locations').doc(currentUnitId).delete();
-        db.collection('unidades').doc(currentUnitId).update({
-            status: 'INACTIVO',
-            currentDriverId: null, currentDriverName: null, currentDriverEmail: null,
-            assignedRouteId: null, proximaSalida: null, proximoRegreso: null,
-            retrasoInfo: null, checadorId: null, checadorName: null, vueltasCompletadas: null
-        }).catch(err => console.warn("Unidad ya estaba liberada:", err));
+    if (tickerInterval) {
+        clearInterval(tickerInterval);
+        tickerInterval = null;
     }
+    // Quitar bloqueo de pantalla si estaba activo
+    const overlay = document.getElementById('driving-overlay');
+    if (overlay) overlay.style.display = 'none';
+
+    // 2. Guardar ID localmente para asegurar que no se pierda durante la ejecución
+    const unidadParaLiberar = currentUnitId;
+    console.log("Unidad a liberar:", unidadParaLiberar);
+
+    // 3. Operaciones en Firebase (CRÍTICO: Usar await)
+    if (unidadParaLiberar) {
+        try {
+            statusText.textContent = "Finalizando en red..."; // Feedback visual
+
+            // A) Borrar ubicación en vivo
+            console.log("A) Borrando live_location...");
+            await db.collection('live_locations').doc(unidadParaLiberar).delete();
+            console.log(">>> live_location borrada.");
+
+            // B) Liberar unidad
+            console.log("B) Actualizando estado de unidad...");
+            await db.collection('unidades').doc(unidadParaLiberar).update({
+                status: 'INACTIVO',
+                currentDriverId: null,
+                currentDriverName: null,
+                currentDriverEmail: null,
+                assignedRouteId: null,
+                proximaSalida: null,
+                proximoRegreso: null,
+                retrasoInfo: null,
+                checadorId: null,
+                checadorName: null,
+                vueltasCompletadas: null
+            });
+            console.log(">>> Unidad liberada a INACTIVO.");
+
+        } catch (err) {
+            console.error("❌ ERROR CRÍTICO AL FINALIZAR TURNO EN FIREBASE:", err);
+            alert("Hubo un error de red al finalizar. Por favor verifica que tengas internet e inténtalo de nuevo.");
+            // No limpiamos las variables globales si falló, para que pueda reintentar
+            return false; 
+        }
+    } else {
+        console.warn("No había currentUnitId para liberar.");
+    }
+
+    console.log("🛑 RASTREO DETENIDO CORRECTAMENTE.");
+    return true; // Indica éxito
 }
 
 function isWithinOperatingHours() {
