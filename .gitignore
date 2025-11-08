@@ -1,0 +1,19 @@
+# Dependencias de Node (¡EL MÁS IMPORTANTE!)
+node_modules/
+npm-debug.log
+package-lock.json
+
+# Capacitor
+android/app/build/
+android/.gradle/
+ios/App/App/build/
+
+# Sistema
+.DS_Store
+Thumbs.db
+
+# IDEs
+.idea/
+.vscode/
+*.swp
+*.swo
