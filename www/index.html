@@ -2,23 +2,20 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>App Chofer - RutasKoox</title>
     
+    <meta http-equiv="Content-Security-Policy" content="default-src * 'unsafe-inline' 'unsafe-eval' data: blob:;">
+    
     <link rel="stylesheet" href="style.css">
-    
-    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-    
 </head>
 <body>
     <div class="container">
         
         <div id="login-screen" class="screen active">
             <h2>Iniciar Sesión (Chofer)</h2>
-            <input type="email" id="login-email" placeholder="Correo electrónico" value="chofer1@koox.com">
-            <input type="password" id="login-password" placeholder="Contraseña" value="123456">
+            <input type="email" id="login-email" placeholder="Correo electrónico" value="">
+            <input type="password" id="login-password" placeholder="Contraseña" value="">
             <button id="login-button">Iniciar Sesión</button>
             <p id="login-error" class="error-message"></p>
         </div>
@@ -30,7 +27,6 @@
             <div id="info-ruta-asignada" class="form-group" style="display: none;">
                 <label>Ruta Asignada:</label>
                 <p id="ruta-asignada-texto" class="ruta-display"></p>
-                
                 <p id="checador-asignado-texto" class="checador-display"></p>
             </div>
             
@@ -50,14 +46,8 @@
 
             <div id="panel-horario-dinamico" class="horario-panel" style="display: none;">
                 <h4>Tu Próximo Horario</h4>
-                <p>
-                    <strong>Salida:</strong>
-                    <span id="horario-salida">--:--</span>
-                </p>
-                <p>
-                    <strong>Regreso Estimado:</strong>
-                    <span id="horario-regreso">--:--</span>
-                </p>
+                <p><strong>Salida:</strong> <span id="horario-salida">--:--</span></p>
+                <p><strong>Regreso Estimado:</strong> <span id="horario-regreso">--:--</span></p>
             </div>
             
             <button id="logout-button" class="secundario">Cerrar Sesión</button>
@@ -65,19 +55,14 @@
 
         <div id="profile-screen" class="screen">
             <h2>Completa tu Perfil</h2>
-            <p>¡Bienvenido! Es tu primer inicio de sesión. 
-            Por favor ingresa tu nombre completo para finalizar tu registro.</p>
-            
+            <p>¡Bienvenido! Es tu primer inicio de sesión. Por favor ingresa tu nombre completo.</p>
             <div class="form-group">
                 <label for="driver-name">Nombre Completo:</label>
                 <input type="text" id="driver-name" placeholder="Ej: Juan Pérez López">
             </div>
-            
             <button id="save-profile-button">Guardar Perfil</button>
-            
             <div class="password-warning">
-                <strong>¡Importante!</strong> La contraseña que te dieron es temporal.
-                Recomendamos cambiarla pronto (función próximamente).
+                <strong>¡Importante!</strong> La contraseña es temporal.
             </div>
         </div>
 
@@ -86,7 +71,7 @@
     <div id="modal-retraso" class="modal-overlay" style="display: none;">
         <div class="modal-contenido">
             <h4>¿Qué está pasando?</h4>
-            <p>Hemos detectado un retraso en tu ruta. Por favor, informa el motivo.</p>
+            <p>Hemos detectado un retraso. Por favor, informa el motivo.</p>
             <button class="btn-modal-opcion" data-motivo="Tráfico">Congestión Vehicular</button>
             <button class="btn-modal-opcion" data-motivo="Desvío de Ruta">Desvío de Ruta</button>
             <button class="btn-modal-opcion" data-motivo="Percance Vial">Percance Vial</button>
@@ -95,11 +80,11 @@
         </div>
     </div>
     
+    <script src="capacitor.js"></script>
     <script src="turf.min.js"></script>
-
-    <script src="app.js"></script>
-    
-    </body>
-</html>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+    <script src="app.js?v=2"></script>    
 </body>
 </html>
